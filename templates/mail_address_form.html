@@ -1,0 +1,17 @@
+<html>
+  <head>
+    <title>Enter Mail Address</title>
+  </head>
+  <body>
+    <h1>Enter Mail Address</h1>
+    <!-- Form for collecting the user's mail address -->
+    <form action="/mail_address_form" method="post">
+      <!-- Input field for the user's mail address -->
+      <label for="mail_address">Mail Address:</label><br>
+      <input type="text" id="mail_address" name="mail_address" value="{{ form.mail_address }}"><br>
+      <br>
+      <!-- Submit button -->
+      <input type="submit" value="Submit">
+    </form>
+  </body>
+</html>
