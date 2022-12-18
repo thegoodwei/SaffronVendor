@@ -23,8 +23,8 @@ uint256 public balance;
     affron.mint(totalSupply);
   }
 
-  event Bought(uint256 countBuys);
-  event Redeem(uint256 redeemSaffron, uint256 paymentAmount);
+ // event Bought(uint256 countBuys);
+ // event Redeem(uint256 redeemSaffron, uint256 paymentAmount);
 //buyAffron function receives payment in ETH and sends back 1 $affron token to the caller. The function also increments the paymentReceived variable and emits a Bought event with the current value of paymentReceived.
 
   function buyAffron() public payable {
