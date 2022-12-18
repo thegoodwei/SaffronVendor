@@ -2,8 +2,9 @@ pragma solidity ^0.7.0;
 
 import "https://github.com/OpenZeppelin/openzeppelin-solidity/contracts/token/ERC20/SafeERC20.sol";
 import "https://github.com/OpenZeppelin/openzeppelin-solidity/contracts/math/SafeMath.sol";
+import "https://github.com/OpenZeppelin/openzeppelin-solidity/contracts/token/ERC20/Burnable.sol"
 
-contract SaffronVendor {
+contract SaffronVendor is SafeERC20, Burnable {
   using SafeMath for uint256;
   using SafeERC20 for IERC20;
 
@@ -42,6 +43,7 @@ uint256 public balance;
       affron.burn(x);
       balance = balance.sub(x);
       functionExecuted = true;
+      totalSupply.sub(x);
     } else {
       functionExecuted = false;
     }
