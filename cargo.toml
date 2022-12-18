@@ -1,0 +1,48 @@
+[package]
+name = "saffron-vendor"
+version = "0.1.0"
+authors = ["Your Name <your@email.com>"]
+edition = "2018"
+
+[dependencies]
+web3 = "0.7.0"
+serde = { version = "1.0", features = ["derive"] }
+serde_derive = "1.0"
+rocket = "0.4.7"
+rocket_contrib = { version = "0.4.7", features = ["templates"] }
+reqwest = "0.10.8"
+tokio = { version = "0.3", features = ["full"] }
+
+[build-dependencies]
+wasm-bindgen = "0.2"
+
+[lib]
+name = "saffron_vendor"
+path = "src/lib.rs"
+
+[dependencies.ethabi]
+version = "4.1"
+features = ["serde"]
+
+[dependencies.solc]
+version = "0.4.21"
+
+[build-dependencies.parity-wasm]
+version = "0.15.1"
+
+[build-dependencies.ethabi-cli]
+version = "4.1"
+features = ["serde"]
+
+[package.metadata.docs.rs]
+all-features = true
+
+[profile.release]
+opt-level = 3
+lto = true
+
+[features]
+default = []
+
+[workspace]
+members = ["saffron-vendor"]
