@@ -171,5 +171,36 @@ file.read_to_string(&mut secret)?;
 let secret: ApplicationSecret = serde_json::from_str(&secret)?;
 
 // Set up the OAuth2 flow
-let auth = InstalledFlow::new(secret, vec!["https://www.googleap
+let auth = InstalledFlow::new(secret, vec!["https://www.googleapom/auth/calendar"])?;
+let client = reqwest::Client::new();
 
+// Create a new event
+let mut event = Event::default();
+event.summary = summary.to_string();
+event.location = location.to_string();
+event.start = EventDateTime::new().date_time(start_time).into();
+event.end = EventDateTime::new().date_time(end_time).into();
+
+// Insert the event into the calendar
+let calendar = Calendar::new(client, auth);
+calendar.events().insert(calendar_id, event).doit()?;
+
+Ok(())
+}
+export INFURA_API_KEY=your-api-key
+
+/*This application has the following routes:
+
+- `/login`: Renders the login form template.
+- `/login` (POST): Processes the login form submission and logs the user in if the credentials are valid.
+- `/dashboard`: Renders the dashboard template if the user is logged in, or redirects to the login page if not.
+- `/book`: Renders the booking form template if the user is logged in, or redirects to the login page if not.
+- `/book` (POST): Processes the booking form submission and books the appointment on the calendar.
+- `/booked`: Renders the confirmation template after a successful booking.
+
+To run this application, you will need to have the `rocket`, `web3`, `rocket_contrib`, `serde_json`, `google-calendar`, and `google-auth-library` crates installed. You will also need to create a project in the Google Cloud Platform Console, enable the Google Calendar API, and download a client secret JSON file.
+
+You will also need to set the `INFURA_API_KEY` environment variable to your Infura API key. You can do this by adding the following line to your terminal before running the application:
+
+
+*/
