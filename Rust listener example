@@ -1,0 +1,56 @@
+use web3::{
+    contract::{Contract, Options},
+    types::{Address, H256, U256},
+};
+
+// Define the ABI for the smart contract
+const ABI: &str = r#"
+[
+    {
+        "inputs": [],
+        "name": "boolValue",
+        "outputs": [
+            {
+                "internalType": "bool",
+                "name": "",
+                "type": "bool"
+            }
+        ],
+        "stateMutability": "view",
+        "type": "function"
+    },
+    {
+        "inputs": [
+            {
+                "internalType": "bool",
+                "name": "_value",
+                "type": "bool"
+            }
+        ],
+        "name": "setBoolValue",
+        "outputs": [],
+        "stateMutability": "nonpayable",
+        "type": "function"
+    }
+]"#;
+
+// Connect to the Ethereum node
+let (_eloop, http) = web3::transports::Http::new("http://localhost:8545").unwrap();
+let web3 = web3::Web3::new(http);
+
+// Deploy the smart contract
+let contract_address = Address::from_low_u64_be(0x1234); // Replace with the actual contract address
+let contract = Contract::from_abi(web3.eth(), contract_address, ABI.as_bytes().to_vec()).unwrap();
+
+// Set the boolean value to true
+let options = Options::default();
+let transaction = contract.call("setBoolValue", (true,), options, U256::from(0), U256::from(0));
+let transaction_hash = transaction.send().unwrap();
+
+// Wait for the transaction to be mined
+let receipt = web3.eth().transaction_receipt(transaction_hash).unwrap();
+
+// Check the boolean value
+let result = contract.call("boolValue", (), None, U256::from(0), U256::from(0)).unwrap();
+let bool_value: bool = result.decode().unwrap();
+assert_eq!(bool_value, true);
