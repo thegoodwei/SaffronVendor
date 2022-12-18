@@ -6,6 +6,11 @@ use tokio::net::{TcpListener, TcpStream};
 use tokio::prelude::*;
 use reqwest::{Client, Response};
 
+// Import the necessary types for validating and sanitizing input
+use std::net::ToSocketAddrs;
+use std::str::FromStr;
+
+
 // Define a struct for representing a saffron order
 #[derive(Serialize, Deserialize, Debug)]
 struct SaffronOrder {
@@ -17,15 +22,25 @@ struct SaffronOrder {
     order_number: u64,
 }
 
+
 // Asynchronously prompt the user for a valid US mail address and return it as a string
-async fn ask_mail_address() -> String {
+//This version of the ask_mail_address function uses the ToSocketAddrs trait to validate the mail address entered by the user. If the mail address is not a valid address, an error message is returned as the result.
+//The function also sanitizes the mail address by using the FromStr trait to convert the address to a string and taking the first address returned by ToSocketAddrs. This ensures that any unnecessary or potentially malicious elements of the address are removed before the address is used.
+async fn ask_mail_address() -> Result<String, String> {
     println!("Please enter a valid US mail address:");
     let mut mail_address = String::new();
     // Read the user's input from stdin
     io::stdin().read_line(&mut mail_address).await.unwrap();
-    // Trim leading and trailing whitespace and return the result
-    mail_address.trim().to_string()
+    // Trim leading and trailing whitespace
+    mail_address = mail_address.trim().to_string();
+    // Validate the mail address using the ToSocketAddrs trait
+    let addr = mail_address.to_socket_addrs().map_err(|_| "Invalid mail address")?;
+    // Sanitize the mail address by taking the first address returned by ToSocketAddrs
+    let sanitized_mail_address = addr.next().unwrap().to_string();
+    // Return the sanitized mail address as a result
+    Ok(sanitized_mail_address)
 }
+
 
 // Asynchronously generate an ascending 8-digit number and return it as a u64
 async fn gen_order_number() -> u64 {
