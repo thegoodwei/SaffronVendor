@@ -1,21 +1,24 @@
 [package]
-name = "saffron-vendor"
+name = "saffron-vendor-dApp"
 version = "0.1.0"
 authors = ["Your Name <your@email.com>"]
-edition = "2018"
+edition = "2022.12"
 
 [dependencies]
 web3 = "0.7.0"
 serde = { version = "1.0", features = ["derive"] }
 serde_derive = "1.0"
-rocket = "0.4.7"
+rocket = "0.4.7 "
 rocket_contrib = { version = "0.4.7", features = ["templates"] }
-reqwest = "0.10.8"
+reqwest = "0.11"
 tokio = { version = "0.3", features = ["full"] }
 
 [build-dependencies]
 wasm-bindgen = "0.2"
 
+[dependencies.openzeppelin-solidity]
+package = "openzeppelin-solidity"
+version = "3.1"
 [lib]
 name = "saffron_vendor"
 path = "src/lib.rs"
