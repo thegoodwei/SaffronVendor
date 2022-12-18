@@ -1,3 +1,12 @@
+#[macro_use]
+extern crate rocket;
+#[macro_use]
+extern crate serde_derive;
+extern crate serde;
+extern crate reqwest;
+extern crate web3;
+extern crate tokio;
+
 // Import the necessary traits and types for serializing and deserializing structs and making HTTP requests
 use serde::{Serialize, Deserialize};
 use serde_derive::{Serialize, Deserialize};
@@ -9,6 +18,10 @@ use reqwest::{Client, Response};
 // Import the necessary types for validating and sanitizing input
 use std::net::ToSocketAddrs;
 use std::str::FromStr;
+
+
+use rocket::{Form, Redirect, Template};
+
 
 
 // Define a struct for representing a saffron order
@@ -54,11 +67,11 @@ async fn gen_order_number() -> u64 {
 }
 
 // Asynchronously make an HTTP POST request to the FWS API to redeem saffron tokens
-async fn redeem_saffron(x: u64, client: &Client) -> Result<Response, reqwest::Error> {
+async fn redeem_saffron(x: u64, client: &Client, mail_address: &str) -> Result<Response, reqwest::Error> {
     // Create an instance of the SaffronOrder struct with the specified number of tokens, the mail address entered by the user, and a unique order number
     let order = SaffronOrder {
         x,
-        mail_address: ask_mail_address().await,
+               mail_address: mail_address.to_string(), // mail_address: ask_mail_address().await,
         order_number: gen_order_number().await,
     };
 
@@ -74,6 +87,66 @@ async fn redeem_saffron(x: u64, client: &Client) -> Result<Response, reqwest::Er
     res
 }
 
+// Define routes for the application
+#[get("/")]
+fn index() -> Template {
+    let context = MailAddressForm { mail_address: "".to_string() };
+    Template::render("index", &context)
+}
+
+#[post("/", data = "<form>")]
+async fn redeem(form: Form<MailAddressForm>) -> Redirect {
+    // Validate the mail address entered by the user
+    let mail_address = form.mail_address.trim();
+    if !mail_address.is_empty() {
+        // Create an instance of the reqwest::Client type
+        let client = Client::new();
+        // Call the redeem_saffron function to make the HTTP POST request to the FWS API
+        let res = redeem_saffron(10, &client, &mail_address).await;
+        match res {
+            Ok(_) => Redirect::to("/success"),
+            Err(_) => Redirect::to("/error"),
+        }
+    } else {
+        // Return an error if the mail address is empty
+        Redirect::to("/error")
+    }
+}
+    
+    
+#[get("/success")]
+fn success() -> Template {
+    Template::render("success", &())
+}
+
+#[get("/error")]
+fn error() -> Template {
+    Template::render("error", &())
+}
+
+fn main() -> Result<(), Box<dyn std::error::Error>> {
+    // Initialize the Rocket application and start the server
+    rocket::ignite()
+        .mount("/", routes![index, redeem, success, error])
+        .launch();
+    Ok(())
+}
+    
+    
+    
+    
+    
+    
+    
+    // Define a form for collecting the user's mail address using the `Form` macro provided by Rocket
+#[derive(FromForm)]
+struct MailAddressForm {
+    mail_address: String,
+}
+
+    
+    
+    
 // Define the main function for the program
 #[tokio::main]
 async fn main() -> Result<(), Box<dyn std::error::Error>> {
