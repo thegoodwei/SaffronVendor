@@ -35,7 +35,6 @@ struct SaffronOrder {
     order_number: u64,
 }
 
-
 // Asynchronously prompt the user for a valid US mail address and return it as a string
 //This version of the ask_mail_address function uses the ToSocketAddrs trait to validate the mail address entered by the user. If the mail address is not a valid address, an error message is returned as the result.
 //The function also sanitizes the mail address by using the FromStr trait to convert the address to a string and taking the first address returned by ToSocketAddrs. This ensures that any unnecessary or potentially malicious elements of the address are removed before the address is used.
@@ -65,6 +64,19 @@ async fn gen_order_number() -> u64 {
         ORDER_NUMBER
     }
 }
+    // Define a form for collecting the user's mail address using the `Form` macro provided by Rocket
+#[derive(FromForm)]
+struct MailAddressForm {
+    mail_address: String,
+}
+// Define a route for displaying the form for collecting the user's mail address
+#[get("/mail_address_form")]
+fn mail_address_form() -> Template {
+    // Render the form template
+    Template::render("mail_address_form", &MailAddressForm { mail_address: String::new() })
+}
+
+
 
 // Asynchronously make an HTTP POST request to the FWS API to redeem saffron tokens
 async fn redeem_saffron(x: u64, client: &Client, mail_address: &str) -> Result<Response, reqwest::Error> {
@@ -84,7 +96,11 @@ async fn redeem_saffron(x: u64, client: &Client, mail_address: &str) -> Result<R
         .json(&order)
         .send()
         .await;
-    res
+       // Return the result of the request or an error message
+    match res {
+        Ok(response) => Ok(response),
+        Err(e) => Err(e),
+    }
 }
 
 // Define routes for the application
@@ -113,7 +129,6 @@ async fn redeem(form: Form<MailAddressForm>) -> Redirect {
     }
 }
     
-    
 #[get("/success")]
 fn success() -> Template {
     Template::render("success", &())
@@ -130,27 +145,10 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         .mount("/", routes![index, redeem, success, error])
         .launch();
     Ok(())
-}
-    
-    
-    
-    
-    
-    
-    
-    // Define a form for collecting the user's mail address using the `Form` macro provided by Rocket
-#[derive(FromForm)]
-struct MailAddressForm {
-    mail_address: String,
-}
-
-    
-    
+}   
     
 // Define the main function for the program
 #[tokio::main]
 async fn main() -> Result<(), Box<dyn std::error::Error>> {
     // Create an instance of the reqwest::Client type
     let client = Client::new();
-
-    //
