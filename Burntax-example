@@ -1,0 +1,23 @@
+pragma solidity ^0.6.0;
+
+contract BurnTaxToken {
+    // Define the burn tax rate
+    uint public burnTaxRate;
+
+    // Create a mapping to store the balance of each token holder
+    mapping(address => uint) public balances;
+
+    // Implement the transfer function
+    function transfer(address recipient, uint amount) public {
+        // Calculate the amount of tokens that should be burned
+        uint burnAmount = amount * burnTaxRate / 100;
+
+        // Subtract the burned tokens from the sender's balance and add them to the contract's balance
+        require(balances[msg.sender] >= burnAmount, "Insufficient balance");
+        balances[msg.sender] -= burnAmount;
+        balances[address(this)] += burnAmount;
+
+        // Transfer the remaining tokens to the recipient
+        balances[recipient] += amount - burnAmount;
+    }
+}
