@@ -1,1 +1,12 @@
 
+use std::fs;
+
+fn main() {
+    // Read the WASM file into a byte array
+    let wasm_bytes = fs::read("pkg/my_program_bg.wasm").unwrap();
+
+    // Convert the byte array to a hex string
+    let wasm_hex = hex::encode(wasm_bytes);
+
+    println!("WASM hex: {}", wasm_hex);
+}
