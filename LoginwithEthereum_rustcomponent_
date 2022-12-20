@@ -62,3 +62,39 @@ impl Component for LoginForm {
                     .unwrap();
                 // Send the request asynchronously and handle the response with the ValidateLoginResponse message
                 self.link.send_future(self.web3.transport().fetch(request,
+self.link.callback(Msg::ValidateLoginResponse)));
+            },
+            Msg::ValidateLoginResponse(response) => {
+                if !response.success {
+                    // If the login failed, display the error message
+                    self.error = Some(response.message.unwrap_or_else(|| "An error occurred".to_string()));
+                } else {
+                    // If the login is successful, redirect the user to the home page
+                    window().location().set_href("/").unwrap();
+                }
+            },
+        }
+        true
+    }
+
+    fn view(&self) -> Html {
+        html! {
+            <div class="login-form" style="width: 100%; height: 100%;">
+                <form onsubmit=|e| {
+                    e.prevent_default();
+                    Msg::Submit
+                }>
+                    <label for="address">{"Ethereum Address"}</label>
+                    <input
+                        id="address"
+                        type="text"
+                        value=&self.address
+                        oninput=|e| Msg::AddressChanged(e.value)
+                    />
+                    <button type="submit">{"Log In"}</button>
+                </form>
+                { self.error.as_ref().map(|e| <p class="error">{ e }</p> }).unwrap_or_else(|| html! {}) }
+            </div>
+        }
+    }
+}
