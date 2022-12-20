@@ -1,0 +1,64 @@
+use yew::prelude::*;
+use serde::{Serialize, Deserialize};
+use web3::{
+    transports::Http,
+    Web3,
+};
+
+// This struct represents the response from the WordPress server
+#[derive(Debug, Serialize, Deserialize)]
+struct ValidateLoginResponse {
+    success: bool,
+    message: Option<String>,
+}
+
+pub struct LoginForm {
+    web3: Web3<Http>,
+    address: String,
+    error: Option<String>,
+    link: ComponentLink<Self>,
+}
+
+#[derive(Clone, Properties)]
+pub struct Props {
+    pub web3: Web3<Http>,
+    // The nonce is passed in as a prop to ensure that the request to the WordPress server is legitimate
+    pub nonce: String,
+}
+
+pub enum Msg {
+    AddressChanged(String),
+    Submit,
+    ValidateLoginResponse(ValidateLoginResponse),
+}
+
+impl Component for LoginForm {
+    type Message = Msg;
+    type Properties = Props;
+
+    fn create(props: Self::Properties, link: ComponentLink<Self>) -> Self {
+        // Initialize the component with the Web3 instance and a blank address and error
+        LoginForm {
+            web3: props.web3,
+            address: "".to_string(),
+            error: None,
+            link,
+        }
+    }
+
+    fn update(&mut self, msg: Self::Message) -> ShouldRender {
+        match msg {
+            Msg::AddressChanged(address) => {
+                // Update the address field when the input value changes
+                self.address = address;
+            },
+            Msg::Submit => {
+                self.error = None;
+                // Send a request to the WordPress server to validate the login
+                let request = Request::post("/wp-admin/admin-ajax.php")
+                    .header("Content-Type", "application/x-www-form-urlencoded")
+                    // Pass the nonce and address as form data
+                    .body(format!("action=validate_ethereum_login&nonce={}&address={}", self.props().nonce, self.address))
+                    .unwrap();
+                // Send the request asynchronously and handle the response with the ValidateLoginResponse message
+                self.link.send_future(self.web3.transport().fetch(request,
