@@ -1,0 +1,183 @@
+
+/*
+This code demonstrates how to make secure API calls to the Amazon Marketplace API to:
+- Retrieve the details of a product
+- Place an order for a product on behalf of a customer
+- Check the
+ inventory for a product
+
+Manage the supply of a product
+It uses the reqwest library to make HTTP requests and the serde library to serialize and deserialize data.
+
+To ensure that HTTPS is used when making API calls, the code creates a new HTTP client and sets the base URL for each API endpoint to start with "https://".
+
+*/
+
+use serde::{Deserialize, Serialize};
+use std::env;
+use std::error::Error;
+use reqwest::Client;
+use reqwest::header::{HeaderMap, HeaderValue};
+
+// The Product struct represents a product in the Amazon Marketplace.
+// It has three fields:
+// - name: the name of the product
+// - price: the price of the product
+// - quantity: the quantity of the product in the inventory
+#[derive(Serialize, Deserialize)]
+struct Product {
+    name: String,
+    price: f64,
+    quantity: u64,
+}
+
+// The Order struct represents an order placed by a customer.
+// It has two fields:
+// - product: the product being ordered
+// - quantity: the quantity of the product being ordered
+#[derive(Serialize, Deserialize)]
+struct Order {
+    product: Product,
+    quantity: u64,
+}
+
+fn main() -> Result<(), Box<dyn Error>> {
+    // Read the Amazon Marketplace API key from the environment
+    let api_key = env::var("AMAZON_MARKETPLACE_API_KEY")?;
+
+    // Read the product ID and order quantity from the command line arguments
+    let product_id = std::env::args().nth(1).expect("Please specify a product ID");
+    let quantity = std::env::args().nth(2).expect("Please specify an order quantity");
+
+    // Call the Amazon Marketplace API to get the details of the product
+    let product = get_product(product_id, &api_key)?;
+
+    // Create an Order struct with the product and quantity
+    let order = Order {
+        product: product,
+        quantity: quantity.parse()?,
+};
+
+// Call the Amazon Marketplace API to place the order
+place_order(order, &api_key)?;
+
+// Call the Amazon Marketplace API to check the inventory for the product
+let inventory = check_inventory(product_id, &api_key)?;
+println!("Inventory for product {}: {}", product_id, inventory);
+
+// Call the Amazon Marketplace API to manage the supply of the product
+update_supply(product_id, &api_key)?;
+
+Ok(())
+}
+
+// The get_product function calls the Amazon Marketplace API to retrieve the details of a product.
+// It takes a product ID and an API key as inputs, and returns a Product struct if the call is successful.
+fn get_product(product_id: String, api_key: &str) -> Result<Product, Box<dyn Error>> {
+// Create a new HTTP client
+let client = Client::new();
+
+// Set the base URL for the Product API
+let base_url = "https://marketplace.api.amazon.com/v1/products/";
+
+// Create a request builder with the product ID and API key
+let mut builder = client.get(&format!("{}{}", base_url, product_id));
+builder = builder.header("x-api-key", api_key);
+
+// Send the request and get the response
+let response = builder.send()?;
+
+// Check the status code of the response
+if !response.status().is_success() {
+return Err(format!("Request failed with status code: {}", response.status()).into());
+}
+
+// Deserialize the response into a Product struct
+let product: Product = response.json()?;
+
+Ok(product)
+
+}
+
+// The place_order function calls the Amazon Marketplace API to place an order for a product on behalf of a customer.
+// It takes an Order struct and an API key as inputs, and returns an error if the call fails.
+fn place_order(order: Order, api_key: &str) -> Result<(), Box<dyn Error>> {
+// Create a new HTTP client
+let client = Client::new();
+
+// Serialize the Order struct into JSON
+let order_json = serde_json::to_string(&order)?;
+
+// Set the base URL for the Order API
+let base_url = "https://marketplace.api.amazon.com/v1/orders";
+
+// Create a request builder with the order JSON and API key
+let mut builder = client.post(base_url);
+builder = builder.header("x-api-key", api_key);
+builder = builder.header("Content-Type", "application/json");
+builder = builder.body(order_json);
+
+// Send the request and get the response
+let response = builder.send()?;
+
+// Check the status code of the response
+if !response.status().is_success() {
+    return Err(format!("Request failed with status code: {}", response.status()).into());
+}
+
+Ok(())
+}
+
+// The check_inventoryQuantity function calls the Amazon Marketplace API to check the inventory for a product.
+// It takes a product ID and an API key as inputs, and returns the quantity of the product in the inventory.
+fn check_inventoryQuantity(product_id: String, api_key: &str) -> Result<u64, Box<dyn Error>> {
+// Create a new HTTP client
+let client = Client::new();
+
+// Set the base URL for the Inventory API
+let base_url = "https://marketplace.api.amazon.com/v1/inventory/";
+
+// 
+// Create a request builder with the product ID and API key
+let mut builder = client.get(&format!("{}{}", base_url, product_id));
+builder = builder.header("x-api-key", api_key);
+
+// Send the request and get the response
+let response = builder.send()?;
+
+// Check the status code of the response
+if !response.status().is_success() {
+    return Err(format!("Request failed with status code: {}", response.status()).into());
+}
+
+// Deserialize the response into a Product struct
+let product: Product = response.json()?;
+
+// Return the quantity of the product in the inventory
+Ok(product.quantity)
+
+}
+
+// The update_supply function calls the Amazon Marketplace API to manage the supply of a product.
+// It takes a product ID and an API key as inputs, and returns an error if the call fails.
+fn update_supply(product_id: String, api_key: &str) -> Result<(), Box<dyn Error>> {
+// Create a new HTTP client
+let client = Client::new();
+// Set the base URL for the Supply API
+let base_url = "https://marketplace.api.amazon.com/v1/supply/";
+
+// Create a request builder with the product ID and API key
+let mut builder = client.patch(&format!("{}{}", base_url, product_id));
+builder = builder.header("x-api-key", api_key);
+
+// Send the request and get the response
+let response = builder.send()?;
+
+// Check the status code of the response
+if !response.status().is_success() {
+    return Err(format!("Request failed with status code: {}", response.status()).into());
+}
+
+Ok(())
+}
+
