@@ -1,266 +1,186 @@
 /*
-This Rust program is designed to be compatible with wasm on Ethereum and make API calls to the Amazon Marketplace Web Service. It consists of four main functions: place_order, check_inventory, check_price, and order_more_inventory.
-
-The place_order function calls the Amazon Marketplace API to place an order on behalf of a customer. It takes in an Order struct, which contains the product being ordered and the quantity, as well as an API key. It returns an OrderStatus struct, which contains the unique identifier of the order and its current status. To use this function, you can pass in an Order struct and an API key as arguments. The function will return an OrderStatus struct if the API call is successful, or an error if the call fails.
-
-The check_inventory function calls the Amazon Marketplace API to check the inventory for a product. It takes in a product ID and an API key as arguments, and returns an Inventory struct, which contains the unique identifier of the product and the current quantity of the product in the inventory. To use this function, you can pass in a product ID and an API key as arguments. The function will return an Inventory struct if the API call is successful, or an error if the call fails.
-
-The check_price function calls the Amazon Marketplace API to get the details of a product. It takes in a product ID and an API key as arguments, and returns the price of the product as a f64. To use this function, you can pass in a product ID and an API key as arguments. The function will return the price of the product if the API call is successful, or an error if the call fails.
-
-The order_more_inventory function calls the Amazon Marketplace API to update the inventory for a product. It takes in a product ID, the quantity to be ordered, and an API key as arguments, and returns an empty tuple if the call is successful. To use this function, you can pass in a product ID, quantity
-
-
-
-Continue 
-
-to be ordered, and an API key as arguments. The function will return an empty tuple if the API call is successful, or an error if the call fails.
-
-In addition to these main functions, the program also includes several structs and utility functions to facilitate the API calls. The Product struct represents a product in the Amazon Marketplace, with fields for the product name, price, and quantity. The Order struct represents an order placed by a customer, with fields for the product being ordered and the quantity. The OrderStatus struct represents the status of an order, with fields for the order's unique identifier and current status. The Inventory struct represents the inventory of a product, with fields for the product's unique identifier and current quantity.
-
-The program also includes a main function that demonstrates how to use the main functions to make API calls to the Amazon Marketplace Web Service. This function reads the Amazon Marketplace API key from the environment and reads the product ID and order quantity from the command line arguments. It then calls the get_product function to retrieve the details of the product, creates an Order struct with the product and quantity, and calls the place_order function to place the order. It also calls the check_inventory function to check the inventory for the product and prints the result to the console, and calls the update_supply function to manage the supply of the product.
-
-To use this program in a wasm environment on Ethereum, you will need to compile the Rust code to wasm and then deploy the wasm contract to the Ethereum network. You will also need to have an API key for the Amazon Marketplace Web Service, which can be obtained by signing up for the service and creating an API key. With these resources in place, you can call the main functions of the program to make API calls to the Amazon Marketplace Web Service and perform the desired actions.
-
-
-
-
-
+The following code is for interacting with the Amazon Marketplace API.
+It includes functions for checking the price and supply of a product,
+ordering inventory, placing customer orders, and checking the status of an order.
+It uses the reqwest library for making HTTPS requests and the serde library for
+serializing and deserializing data.
 */
 
+use serde::{Deserialize, Serialize}; // imports the Deserialize and Serialize traits from the serde library
+use std::error::Error; // imports the Error trait from the std library
+use reqwest::Client; // imports the Client type from the reqwest library
+use reqwest::header::{HeaderMap, HeaderValue}; // imports the HeaderMap and HeaderValue types from the reqwest::header module
 
-
-
-#![no_std]
-#![feature(alloc)]
-#![feature(core_intrinsics)]
-#![feature(lang_items)]
-#![feature(panic_implementation)]
-#![feature(const_fn)]
-#![feature(ptr_internals)]
-#![feature(const_raw_ptr_to_usize_cast)]
-#![feature(const_raw_ptr_deref)]
-#![feature(alloc_error_handler)]
-#![feature(global_allocator)]
-
-extern crate alloc;
-
-use alloc::string::String;
-use alloc::vec::Vec;
-use core::result::Result;
-use core::str::FromStr;
-
-#[macro_use]
-extern crate serde_derive;
-
-use serde::{Deserialize, Serialize};
-
-#[macro_use]
-extern crate wasm_bindgen_derive;
-
-use wasm_bindgen::prelude::*;
-use wasm_bindgen::JsCast;
-use web_sys::{Request, RequestInit, RequestMode, Response};
-
-// The Product struct represents a product in the Amazon Marketplace.
-// It has three fields:
-// - name: the name of the product
-// - price: the price of the product
-// - quantity: the quantity of the product in the inventory
-#[derive(Serialize, Deserialize)]
+#[derive(Serialize, Deserialize)] // indicates that the Product struct should be serializable and deserializable
 struct Product {
-name: String,
-price: f64,
-quantity: u64,
+name: String, // field for the product name
+price: f64, // field for the product price
+quantity: u64, // field for the product quantity
 }
 
-// The Order struct represents an order placed by a customer.
-// It has two fields:
-// - product: the product being ordered
-// - quantity: the quantity of the product being ordered
-#[derive(Serialize, Deserialize)]
+#[derive(Serialize, Deserialize)] // indicates that the Order struct should be serializable and deserializable
 struct Order {
-product: Product,
-quantity: u64,
+product: Product, // field for the product being ordered
+quantity: u64, // field for the quantity of the product being ordered
 }
 
-// The OrderStatus struct represents the status of an order placed by a customer.
-// It has two fields:
-// - order_id: the unique identifier of the order
-// - status: the current status of the order (e.g. "Processing", "Shipped")
-#[derive(Deserialize)]
+#[derive(Serialize, Deserialize)] // indicates that the OrderStatus struct should be serializable and deserializable
 struct OrderStatus {
-order_id: String,
-status: String,
+order_id: String, // field for the order id
+status: String, // field for the order status
 }
 
-// The Inventory struct represents the current inventory for a product in the Amazon Marketplace.
-// It has two fields:
-// - product_id: the unique identifier of the product
-// - quantity: the current quantity of the product in the inventory
-#[derive(Deserialize)]
+#[derive(Serialize, Deserialize)] // indicates that the Inventory struct should be serializable and deserializable
 struct Inventory {
-product_id: String,
-quantity: u64,
+product_id: String, // field for the product id
+quantity: u64, // field for the quantity of the product
 }
 
-#[wasm_bindgen]
-pub fn place_order(order: &Order, api_key: &str) -> Result<OrderStatus, JsValue> {
-// Call the Amazon Marketplace API to place the order
-let url = "https://marketplace.api.amazon.com/v1/orders";
-let mut opts = RequestInit::new();
-opts.method("POST");
-opts.mode(RequestMode::Cors);
-opts.headers(&[("x-api-key", api_key)]);
-opts.body(Some(JsValue::from_serde(order).unwrap()));
-
-
-let request = Request::new_with_str_and_init(url, &opts)?;
-
-let window = web_sys::window().unwrap();
-let request_promise = window.fetch_with_request(&request);
-
-let resp_value = JsFuture::from(request_promise)
-    .await?
-    .dyn_into::<Response>()?;
-
-let status = resp_value.status();
+// Async function to check the price of a product
+async fn check_price(product_id: &str, api_key: &str) -> Result<f64, JsValue> {
+let client = Client::new(); // creates a new HTTP client
+let base_url = "https://marketplace.api.amazon.com/v1/products/"; // base URL for the products endpoint
+// creates a request builder for a GET request to the products endpoint with the product id appended to the base URL
+let mut builder = client.get(&format!("{}{}", base_url, product_id));
+// adds the x-api-key header to the request with the provided API key
+builder = builder.header("x-api-key", api_key);
+// sends the request and assigns the response value to a variable
+let resp_value = builder.send().await?;
+let status = resp_value.status(); // gets the status code of the response
+// if the status code is not a success code, return an error
 if !status.is_success() {
-    return Err(JsValue::from_str(&format!(
-        "Request failed with status code: {}",
-        status
-    )));
+return Err(JsValue::from_str(&format!("Request failed with status code: {}", status)));
 }
+// deserializes the response body as a Product struct and assigns it to a variable
+let product: Product = resp_value.json().await?;
+// returns the price field of the Product struct
+Ok(product.price)}
 
-// Deserialize the response into an OrderStatus struct
-let order_status: OrderStatus = resp_value.json()?;
-
-Ok(order_status)
-
-}
-
-#[wasm_bindgen]
-pub fn check_inventory(product_id: &str, api_key: &str) -> Result<Inventory, JsValue> {
-// Call the Amazon Marketplace API to check the inventory for the product
-let url = "https://marketplace.api.amazon.com/v1/inventory";
-let mut opts = RequestInit::new();
-opts.method("GET");
-opts.mode(RequestMode::Cors);
-opts.headers(&[("x-api-key", api_key)]);
-opts.query(&[("product_id", product_id)]);
-
-
-let request = Request::new_with_str_and_init(url, &opts)?;
-
-let window = web_sys::window().unwrap();
-let request_promise = window.fetch_with_request(&request);
-
-let resp_value = JsFuture::from(request_promise)
-    .await?
-    .dyn_into::<Response>()?;
-
-let status = resp_value.status();
+// Async function to check the supply of a product
+async fn check_supply(product_id: &str, api_key: &str) -> Result<u64, JsValue> {
+let client = Client::new(); // creates a new HTTP client
+let base_url = "https://marketplace.api.amazon.com/v1/inventory/"; // base URL for the inventory endpoint
+// creates a request builder for a GET request to the inventory endpoint with the product id appended to the base URL
+let mut builder = client.get(&format!("{}{}", base_url, product_id));
+// adds the x-api-key header to the request with the provided API key
+builder = builder.header("x-api-key", api_key);
+// sends the request and assigns the response value to a variable
+let resp_value = builder.send().await?;
+let status = resp_value.status(); // gets the status code of the response
+// if the status code is not a success code, return an error
 if !status.is_success() {
-    return Err(JsValue::from_str(&format!(
-        "Request failed with status code: {}",
-        status
-    )));
+return Err(JsValue::from_str(&format!("Request failed with status code: {}", status)));
+}
+// deserializes the response body as an Inventory struct and assigns it to a variable
+let inventory: Inventory = resp_value.json().await?;
+// returns the quantity field of the Inventory struct
+Ok(inventory.quantity)
 }
 
-// Deserialize the response into an Inventory struct
-let inventory: Inventory = resp_value.json()?;
-
-Ok(inventory)
-}
-
-#[wasm_bindgen]
-pub fn check_price(product_id: &str, api_key: &str) -> Result<f64, JsValue> {
-// Call the Amazon Marketplace API to get the details of the product
-let url = "https://marketplace.api.amazon.com/v1/products";
-let mut opts = RequestInit::new();
-opts.method("GET");
-opts.mode(RequestMode::Cors);
-opts.headers(&[("x-api-key", api_key)]);
-opts.query(&[("product_id", product_id)]);
-
-
-let request = Request::new_with_str_and_init(url, &opts)?;
-
-let window = web_sys::window().unwrap();
-let request_promise = window.fetch_with_request(&request);
-
-let resp_value = JsFuture::from(request_promise)
-    .await?
-    .dyn_into
-::<Response>()?;
-
-let status = resp_value.status();
+// Async function to order inventory for a product
+async fn order_inventory(product_id: &str, quantity: u64, api_key: &str) -> Result<(), JsValue> {
+let client = Client::new(); // creates a new HTTP client
+let base_url = "https://marketplace.api.amazon.com/v1/inventory/"; // base URL for the inventory endpoint
+// creates a request builder for a POST request to the inventory endpoint with the product id appended to the base URL
+let mut builder = client.post(&format!("{}{}", base_url, product_id));
+// adds the x-api-key header to the request with the provided API key
+builder = builder.header("x-api-key", api_key);
+// adds the quantity of the product to be ordered in the request body as an Inventory struct
+builder = builder.json(&Inventory {
+product_id: product_id.to_string(),
+quantity: quantity,
+});
+// sends the request and assigns the response value to a variable
+let resp_value = builder.send().await?;
+let status = resp_value.status(); // gets the status code of the response
+// if the status code is not a success code, return an error
 if !status.is_success() {
-    return Err(JsValue::from_str(&format!(
-        "Request failed with status code: {}",
-        status
-    )));
+return Err(JsValue::from_str(&format!("Request failed with status code: {}", status)));
 }
-
-// Deserialize the response into a Product struct
-let product: Product = resp_value.json()?;
-
-// Return the price of the product
-Ok(product.price)
-}
-
-#[wasm_bindgen]
-pub fn order_more_inventory(product_id: &str, quantity: u64, api_key: &str) -> Result<(), JsValue> {
-// Call the Amazon Marketplace API to update the inventory for the product
-let url = "https://marketplace.api.amazon.com/v1/inventory/order";
-let mut opts = RequestInit::new();
-opts.method("POST");
-opts.mode(RequestMode::Cors);
-opts.headers(&[("x-api-key", api_key)]);
-opts.body(Some(
-JsValue::from_serde(&json!({
-"product_id": product_id,
-"quantity": quantity,
-}))
-.unwrap(),
-));
-
-Copy code
-let request = Request::new_with_str_and_init(url, &opts)?;
-
-let window = web_sys::window().unwrap();
-let request_promise = window.fetch_with_request(&request);
-
-let resp_value = JsFuture::from(request_promise)
-    .await?
-    .dyn_into::<Response>()?;
-
-let status = resp_value.status();
-if !status.is_success() {
-    return Err(JsValue::from_str(&format!(
-        "Request failed with status code: {}",
-        status
-    )));
-}
-
+// if the request is successful, return an empty tuple
 Ok(())
 }
 
+// Async function to place a customer order for a product
+async fn place_customer_order(product_id: &str, quantity: u64, api_key: &str) -> Result<String, JsValue
+
+
+
+// Async function to place a customer order for a product
+async fn place_customer_order(product_id: &str, quantity: u64, api_key: &str) -> Result<String, JsValue> {
+let client = Client::new(); // creates a new HTTP client
+let base_url = "https://marketplace.api.amazon.com/v1/orders/"; // base URL for the orders endpoint
+// gets the product information using the provided product id and API key
+let product = get_product(product_id, api_key).await?;
+// creates an Order struct with the product and quantity of the product to be ordered
+let order = Order {
+product: product,
+quantity: quantity,
+};
+// creates a request builder for a POST request to the orders endpoint with the product id appended to the base URL
+let mut builder = client.post(&format!("{}{}", base_url, product_id));
+// adds the x-api-key header to the request with the provided API key
+builder = builder.header("x-api-key", api_key);
+// adds the Order struct to the request body
+builder = builder.json(&order);
+// sends the request and assigns the response value to a variable
+let resp_value = builder.send().await?;
+let status = resp_value.status(); // gets the status code of the response
+// if the status code is not a success code, return an error
+if !status.is_success() {
+return Err(JsValue::from_str(&format!("Request failed with status code: {}", status)));
+}
+// deserializes the response body as an OrderStatus struct and assigns it to a variable
+let order_status: OrderStatus = resp_value.json().await?;
+// returns the order_id field of the OrderStatus struct
+Ok(order_status.order_id)
+}
+
+// Async function to check the status of an order
+async fn check_order_status(order_id: &str, api_key: &str) -> Result<String, JsValue> {
+let client = Client::new(); // creates a new HTTP client
+let base_url = "https://marketplace.api.amazon.com/v1/orders/"; // base URL for the orders endpoint
+// creates a request builder for a GET request to the orders endpoint with the order id appended to the base URL
+let mut builder = client.get(&format!("{}{}", base_url, order_id));
+// adds the x-api-key header to the request with the provided API key
+builder = builder.header("x-api-key", api_key);
+// sends the request and assigns the response value to a variable
+let resp_value = builder.send().await?;
+let status = resp_value.status(); // gets the status code of the response
+// if the status code is not a success code, return an error
+if !status.is_success() {
+return Err(JsValue::from_str(&format!("Request failed with status code: {}", status)));
+}
+// deserializes the response body as an OrderStatus struct and assigns it to a variable
+
+
+// Async function to check the status of an order
+async fn check_order_status(order_id: &str, api_key: &str) -> Result<String, JsValue> {
+let client = Client::new(); // creates a new HTTP client
+let base_url = "https://marketplace.api.amazon.com/v1/orders/"; // base URL for the orders endpoint
+// creates a request builder for a GET request to the orders endpoint with the order id appended to the base URL
+let mut builder = client.get(&format!("{}{}", base_url, order_id));
+// adds the x-api-key header to the request with the provided API key
+builder = builder.header("x-api-key", api_key);
+// sends the request and assigns the response value to a variable
+let resp_value = builder.send().await?;
+let status = resp_value.status(); // gets the status code of the response
+// if the status code is not a success code, return an error
+if !status.is_success() {
+return Err(JsValue::from_str(&format!("Request failed with status code: {}", status)));
+}
+// deserializes the response body as an OrderStatus struct and assigns it to a variable
+let order_status: OrderStatus = resp_value.json().await?;
+// returns the status field of the OrderStatus struct
+Ok(order_status.status)
+}
+
 /*
-This function is a wrapper around the place_order function, which calls the Amazon Marketplace API to place an order on behalf of a customer. It takes in an Order struct, which contains the product being ordered and the quantity, as well as an API key. It returns an OrderStatus struct, which contains the unique identifier of the order and its current status.
+Notes:
+
+The functions in this code rely on the reqwest library for making HTTP requests and the serde library for serializing and deserializing data.
+The functions make use of the Amazon Marketplace API to perform various actions such as checking prices, checking inventory levels, placing orders, and checking order statuses.
+Each function sends an HTTP request to a specific endpoint of the API and returns either the requested information or a result indicating success or failure.
+It is important to note that the API requires an API key to be included in the requests as an "x-api-key" header.
 */
-
-/*
-This function is a wrapper around the check_inventory function, which calls the Amazon Marketplace API to check the inventory for a product. It takes in
-a product ID and an API key, and returns an Inventory struct, which contains the unique identifier of the product and the current quantity of the product in the inventory.
-
-/*
-This function is a wrapper around the check_price function, which calls the Amazon Marketplace API to get the details of a product. It takes in a product ID and an API key, and returns the price of the product as a f64.
-
-/*
-This function is a wrapper around the order_more_inventory function, which calls the Amazon Marketplace API to update the inventory for a product. It takes in a product ID, the quantity to be ordered, and an API key, and returns an empty tuple if the call is successful.
-*/
-
-
-
-
 
