@@ -65,23 +65,29 @@ struct Request {
     callback_args: Vec<u8>,
 }
 
-// Implement the ERC20 trait for the Request struct
+/// Implement the ERC20 trait for the Request struct (continued)
 impl ERC20 for Request {
-    // Return the name of the token
-    fn name(&self) -> &str {
-        "My Chainlink Request Token"
+    // Return the balance of the specified address
+    fn balance_of(&self, owner: &Address) -> U256 {
+        // If the owner address is the callback address, return the payment amount. Otherwise, return 0.
+        if owner == &self.callback_address {
+            self.payment
+        } else {
+            U256::zero()
+        }
     }
 
-    // Return the symbol for the token
-    fn symbol(&self) -> &str {
-        "MCRT"
-    }
+    // Transfer the specified amount of token from the `from` address to the `to` address
+    fn transfer(&mut self, from: &Address, to: &Address, value: U256) -> bool {
+        // Return false if the `from` address is not the callback address
+        if from != &self.callback_address {
+            return false;
+        }
 
-    // Return the number of decimal places for the token
-    fn decimals(&self) -> u8 {
-        18
-    }
+        // Decrease the payment amount by the value being transferred
+        self.payment -= value;
 
-    // Return the total supply of the token
-    fn total_supply(&self) -> U256 {
-        // Return the payment amount as the
+        // Return true to indicate that the transfer was successful
+        true
+    }
+}
