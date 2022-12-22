@@ -1,149 +1,15 @@
-//FRONTEND INIT BUY REDEEM ON ETHEREUM
-// Import the Web3 library
-import Web3 from "web3";
-
-// Define the ABI (Application Binary Interface) of the smart contract
-// This is used to generate the contract object and interact with its functions
-const abi = [
-    // The "buy" function is a payable function that takes no inputs and returns no outputs
-    {
-        "inputs": [], // No input parameters
-        "name": "buy", // Function name
-        "outputs": [], // No output parameters
-        "stateMutability": "payable", // The function is payable (can receive Ether)
-        "type": "function", // The function is a smart contract function
-    },
-    // The "redeem" function is a nonpayable function that takes two bytes32 inputs (name and address) and returns no outputs
-    {
-        "inputs": [
-            {
-                "name": "name", // Name of the first input parameter
-                "type": "bytes" // The type of the first input parameter is bytes
-            },
-            {
-                "name": "address", // Name of the second input parameter
-                "type": "bytes" // The type of the second input parameter is bytes
-            }
-        ],
-        "name": "redeem", // Function name
-        "outputs": [], // No output parameters
-        "stateMutability": "nonpayable", // The function is nonpayable (cannot receive Ether)
-        "type": "function", // The function is a smart contract function
-    },
-    // ... other contract functions
-];
-
-// Define the contract address
-const contract_address = "0x...";
-
-// Initialize the Web3 provider
-// This provider allows us to send Ethereum transactions and call smart contract functions
-const web3 = new Web3(window.ethereum);
-
-// Define the buy function
-// Define the buy function (continued)
-async function buy() {
-    // Get the user's Ethereum address
-    const address = (await web3.eth.getAccounts())[0];
-
-    // Load the contract using the ABI and contract address
-    // This generates a contract object that we can use to interact with the contract's functions
-    const contract = new web3.eth.Contract(abi, contract_address);
-
-    // Call the contract's "buy" function
-    // This sends a transaction to the Ethereum network to call the function
-    // The "from" parameter specifies the sender address
-    await contract.methods.buy().send({ from: address });
-}
-
-// Define the redeem function
-/* This function takes in two string arguments: name and address. These represent the name and delivery address of the user who is redeeming saffron.
-
-The function first gets the Ethereum address of the user who is currently logged in to their wallet. This is done using the web3.eth.getAccounts method.
-
-Next, the function creates a contract object using the ABI and contract address that were defined earlier. This object allows us to interact with the functions of the smart contract. */
-async function redeem(name: String, address: String) {
-    // Get the user's Ethereum address
-    const sender = await web3.eth.getAccounts();
-
-    // Create a contract object using the ABI and contract address
-    const contract = new web3.eth.Contract(abi, contract_address);
-
-    // Convert the name and address strings to byte arrays
-    const name_bytes = web3.utils.fromAscii(name);
-    const address_bytes = web3.utils.fromAscii(address);
-
-    // Call the contract's "redeem" function
-    // This sends a transaction to the Ethereum network to call the function
-    // The "from" parameter specifies the sender address
-    // The "name" and "address" parameters are the inputs to the function
-    await contract.methods.redeem(name_bytes, address_bytes).send({ from: sender });
-}
-
-
-   
-// BUTTONS FOR BUY AND REDEEM
-/*
-<!-- Import the Web3 library -->
-<script src="https://cdn.jsdelivr.net/npm/web3@latest/dist/web3.min.js"></script>
-
-<!-- Define the buy and redeem functions -->
-<script>
-  async function buy() {
-    // Get the user's Ethereum address
-    const sender = await web3.eth.getAccounts();
-
-    // Create a contract object using the ABI and contract address
-    const contract = new web3.eth.Contract(abi, contract_address);
-
-    // Call the contract's "buy" function
-    // This sends a transaction to the Ethereum network to call the function
-    // The "from" parameter specifies the sender address
-    await contract.methods.buy().send({ from: sender });
-  }
-
-  async function redeem(name: String, address: String) {
-    // Get the user's Ethereum address
-    const sender = await web3.eth.getAccounts();
-
-    // Create a contract object using the ABI and contract address
-    const contract = new web3.eth.Contract(abi, contract_address);
-
-    // Convert the name and address strings to byte arrays
-    const name_bytes = web3.utils.fromAscii(name);
-    const address_bytes = web3.utils.fromAscii(address);
-
-    // Call the contract's "redeem" function
-    // This sends a transaction to the Ethereum network to call the function
-    // The "from" parameter specifies the sender address
-    // The "name" and "address" parameters are the inputs to the function
-    await contract.methods.redeem(name_bytes, address_bytes).send({ from: sender });
-  }
-</script>
-
-<!-- Define the buy button -->
-<button onclick="buy()">Buy</button>
-
-<!-- Define the redeem button -->
-<button onclick="redeem('John Smith', '123 Main St')">Redeem</button>
-
-
-
-
-
-
-
-
-
-
-//VISUAL INTERFACE 
-
-/*This is the complete Rust code for the visually sleek Yew webpage with a UX for a saffron vendor. This webpage has two buttons: the green buy button opens a lightbox to reveal a price / available dashboard, a secure input for a Quantity, and 'confirm'; The red redeem button opens a different lightbox and another dashboard, with secure input for Name, Address, and Quantity. */
 use yew::{html, Html, Component, ComponentLink, ShouldRender};
-use yew::services::console::consoleService;
+use yew::services::console::ConsoleService;
 use yew::services::dialog::{DialogService, DialogRequest};
 use yew::html::InputData;
+use yew::format::Json;
+use yew::services::fetch::FetchTask;
+use yew::services::interval::{IntervalService, IntervalTask};
+use yew::callback::Callback;
+use yew::services::storage::{Area, StorageService};
+use serde::{Deserialize, Serialize};
 use std::fs;
+use web3::types::{Address, Bytes};
 
 // Define a struct to represent the state of the component
 struct Model {
@@ -151,6 +17,22 @@ struct Model {
     console: ConsoleService,
     // The DialogService is used to display dialog boxes to the user
     dialog: DialogService,
+    // The FetchService is used to send HTTP requests
+    fetch: FetchService,
+    // The IntervalService is used to execute a callback function at regular intervals
+    interval: IntervalService,
+    // The StorageService is used to access the browser's local storage
+    storage: StorageService,
+    // The Web3 object is used to interact with the Ethereum blockchain
+    web3: web3::Web3<web3::transports::Http>,
+    // The contract object is used to interact with the saffron vendor contract
+    contract: Option<web3::contract::Contract<web3::transports::Http>>,
+    // The contract address
+    contract_address: Address,
+    // The contract ABI (Application Binary Interface)
+    contract_abi: Vec<web3::contract::ContractAbi>,
+    // The current user's Ethereum address
+    user_address: Option<Address>,
     // State variable to track whether the lightbox is open
     show_lightbox: bool,
     // State variable to track the type of lightbox being displayed
@@ -163,9 +45,17 @@ struct Model {
     address: String,
     // State variable to track the quantity entered by the user when redeeming saffron
     redeem_quantity: u32,
+    // State variable to track the current balance of the contract
+    contract_balance: Option<web3::types::U256>,
+    // State variable to track the current user balance
+    user_balance: Option<web3::types::U256>,
+    // State variable to track the FetchTask for fetching the contract balance
+    balance_task: Option<FetchTask>,
+    // State variable to track the IntervalTask for updating the contract and user balances
+    balance_interval: Option<IntervalTask>,
 }
 
-// Define an enum to represent the possible types of lightboxes that can be displayed
+// // Define an enum to represent the possible types of lightboxes that can be displayed
 enum LightboxType {
     Buy,
     Redeem,
@@ -187,6 +77,8 @@ enum Msg {
     Confirm,
     // Message to confirm a redemption
     ConfirmRedeem,
+    // Message to update the contract and user balances
+    UpdateBalances,
 }
 
 // Implement the Component trait for the Model struct
@@ -202,11 +94,32 @@ impl Component for Model {
         let console = ConsoleService::new();
         // Initialize the DialogService
         let dialog = DialogService::new();
+        // Initialize the FetchService
+        let fetch = FetchService::new();
+        // Initialize the IntervalService
+        let interval = IntervalService::new();
+        // Initialize the StorageService
+        let storage = StorageService::new(Area::Local).expect("Error initializing StorageService");
+        // Initialize the Web3 object with a HTTP transport
+        let web3 = web3::Web3::new(web3::transports::Http::new("http://localhost:8545").expect("Error initializing HTTP transport"));
+        // Initialize the contract address
+        let contract_address = Address::from_slice(b"0x...");
+        // Load the contract ABI from a JSON file
+        let contract_abi = fs::read_to_string("contract.json").expect("Error reading contract ABI");
+        let contract_abi: Vec<web3::contract::ContractAbi> = serde_json::from_str(&contract_abi).expect("Error parsing contract ABI");
+        // Initialize the contract object with the ABI and address
+        let contract = Some(web3::contract::Contract::new(web3.eth(), contract_address, contract_abi).expect("Error initializing contract object"));
+        // Initialize the user address to None
+        let user_address = None;
+
+
         // Initialize the component state
-        Model { console, dialog, show_lightbox: false, lightbox_type: None, quantity: 0, name: "".to_string(), address: "".to_string(), redeem_quantity: 0 }
+
+        // Initialize the component state
+        Model { console, dialog, fetch, interval, storage, web3, contract, contract_address, contract_abi, user_address, show_lightbox: false, lightbox_type: None, quantity: 0, name: "".to_string(), address: "".to_string(), redeem_quantity: 0, contract_balance: None, user_balance: None, balance_task: None, balance_interval: None }
     }
 
-       // The update method is called whenever the component's state needs to be updated
+    // The update method is called whenever the component's state needs to be updated
     fn update(&mut self, msg: Self::Message) -> ShouldRender {
         // Match on the incoming message
         match msg {
@@ -215,111 +128,189 @@ impl Component for Model {
                 // Update the show_lightbox state variable based on whether a lightbox type was provided
                 self.show_lightbox = lightbox_type.is_some();
                 // Update the lightbox_type state variable with the provided lightbox type
-                self.lightbox_type = lightbox_type;
-                // Return true to indicate that the component should be re-rendered
-                true
+                self.lightbox_type = lightbox_
+
+        ///?????
+
+    // The view method is called to render the component's HTML
+    fn view(&self) -> Html {
+        // Render the HTML for the component
+        html! {
+            // Container element
+            <div class="container">
+                // Header element
+                <header class="header">
+                    // Title element
+                    <h1 class="title">{ "Saffron Vendor" }</h1>
+                    // Nav element
+                    <nav class="nav">
+                        // Home link
+                        <a class="nav-link" href="/">{ "Home" }</a>
+                        // About link
+                        <a class="nav-link" href="/about">{ "About" }</a>
+                    </nav>
+                </header>
+                // Main element
+                <main class="main">
+                    // Hero element
+                    <div class="hero">
+                        // Image element
+                        <img src="/images/saffron.jpg" alt="Saffron" class="hero-image" />
+                        // Title element
+                        <h2 class="hero-title">{ "Experience the finest saffron on the market" }</h2>
+                        // Button element to open the buy lightbox
+                        <button class="btn btn-green" onclick=self.link.callback(|_| Msg::ToggleLightbox(Some(LightboxType::Buy)))>{ "Buy" }</button>
+                        // Button element to open the redeem lightbox
+                        <button class="btn btn-red" onclick=self.link.callback(|_| Msg::ToggleLightbox(Some(LightboxType::Redeem)))>{ "Redeem" }</button>
+                    </div>
+                    // Section element
+                    <section class="section">
+                        // Title element
+                        <h3 class="section-title">{ "What is saffron?" }</h3>
+                        // Paragraph element
+                        <p class="section-text">{ "Saffron is a spice derived from the flower of Crocus sativus, commonly known as the saffron crocus. It is widely used in cooking and has a unique, pungent flavor and aroma. It is also known for its bright yellow-orange color and is often used as a natural dye." }</p>
+                    </section>
+                </main>
+                // Footer element
+                <footer class="footer">
+                    // Paragraph element
+                    <p class="footer-text">{ "Copyright 2021 Saffron Vendor" }</p>
+                </footer>
+                // Render the lightbox component if show_lightbox is true
+                { self.view_lightbox() }
+            </div>
+        }
+    }
+
+    // The view_lightbox method is called to render the lightbox component
+    fn view_lightbox(&self) -> Html {
+        // Match on the lightbox_type state variable
+        match &self.lightbox_type {
+            // If the lightbox type is Buy...
+            Some(LightboxType::Buy) => {
+                // Render the HTML for the buy lightbox
+                html! {
+                    // Overlay element
+                    <div class="overlay" onclick=self.link.callback(|_| Msg::ToggleLightbox(None))>
+                        // Modal element
+                        <
+//???????????
+
+
+
+        // The view_lightbox method is called to render the lightbox component
+    fn view_lightbox(&self) -> Html {
+        // Match on the lightbox_type state variable
+        match &self.lightbox_type {
+            // If the lightbox type is Buy...
+            Some(LightboxType::Buy) => {
+                // Render the HTML for the buy lightbox
+                html! {
+                    // Overlay element
+                    <div class="overlay" onclick=self.link.callback(|_| Msg::ToggleLightbox(None))>
+                        // Modal element
+                        <div class="modal">
+                            // Title element
+                            <h3 class="modal-title">{ "Buy Saffron" }</h3>
+                            // Form element
+                            <form onsubmit=self.link.callback(|e: FocusEvent| {
+                                e.prevent_default();
+                                Msg::Confirm
+                            })>
+                                // Label element
+                                <label for="quantity" class="form-label">{ "Quantity:" }</label>
+                                // Input element for quantity
+                                <input type="number" id="quantity" class="form-input" value=self.quantity.to_string() oninput=self.link.callback(|e: InputData| Msg::SetQuantity(e.value)) />
+                                // Button element to submit the form
+                                <button type="submit" class="btn btn-green">{ "Confirm" }</button>
+                            </form>
+                            // Button element to close the lightbox
+                            <button class="btn btn-red" onclick=self.link.callback(|_| Msg::ToggleLightbox(None))>{ "Cancel" }</button>
+                        </div>
+                    </div>
+                }
             }
-            // If the message is to set the quantity state variable...
-            Msg::SetQuantity(quantity) => {
-                // Parse the quantity string as a u32 and update the state variable
-                self.quantity = quantity.parse().unwrap();
-                // Return false to indicate that the component does not need to be re-rendered
-                false
+            // If the lightbox type is Redeem...
+            Some(LightboxType::Redeem) => {
+                // Render the HTML for the redeem lightbox
+                html! {
+                    // Overlay element
+                    <div class="overlay" onclick=self.link.callback(|_| Msg::ToggleLightbox(None))>
+                        // Modal element
+                        <div class="modal">
+                            // Title element
+                            <h3 class="modal-title">{ "Redeem Saffron" }</h3>
+                                                        // Form element
+                            <form onsubmit=self.link.callback(|e: FocusEvent| {
+                                e.prevent_default();
+                                Msg::ConfirmRedeem
+                            })>
+                                // Label element
+                                <label for="name" class="form-label">{ "Name:" }</label>
+                                // Input element for name
+                                <input type="text" id="name" class="form-input" value=&self.name oninput=self.link.callback(|e: InputData| Msg::SetName(e.value)) />
+                                // Label element
+                                <label for="address" class="form-label">{ "Address:" }</label>
+                                // Input element for address
+                                <input type="text" id="address" class="form-input" value=&self.address oninput=self.link.callback(|e: InputData| Msg::SetAddress(e.value)) />
+                                // Label element
+                                <label for="redeem_quantity" class="form-label">{ "Quantity:" }</label>
+                                // Input element for redeem_quantity
+                                <input type="number" id="redeem_quantity" class="form-input" value=self.redeem_quantity.to_string() oninput=self.link.callback(|e: InputData| Msg::SetRedeemQuantity(e.value)) />
+                                //
+
+//?????????
+
+                                // Button element to submit the form
+                                <button type="submit" class="btn btn-green">{ "Confirm" }</button>
+                            </form>
+                            // Button element to close the lightbox
+                            <button class="btn btn-red" onclick=self.link.callback(|_| Msg::ToggleLightbox(None))>{ "Cancel" }</button>
+                        </div>
+                    </div>
+                }
             }
-            // If the message is to set the name state variable...
-            Msg::SetName(name) => {
-                // Update the name state variable with the provided name
-                self.name = name;
-                // Return false to indicate that the component does not need to be re-rendered
-                false
-            }
-            // If the message is to set the address state variable...
-            Msg::SetAddress(address) => {
-                // Update the address state variable with the provided address
-                self.address = address;
-                // Return false to indicate that the component does not need to be re-rendered
-                false
-            }
-            // If the message is to set the redeem_quantity state variable...
-            Msg::SetRedeemQuantity(redeem_quantity) => {
-                // Parse the redeem_quantity string as a u32 and update the state variable
-                self.redeem_quantity = redeem_quantity.parse().unwrap();
-                // Return false to indicate that the component does not need to be re-rendered
-                false
-            }
-            // If the message is to confirm a purchase...
-            Msg::Confirm => {
-                // Log a message to the console
-                self.console.log(&format!("Confirmed purchase of saffron - Quantity: {}", self.quantity));
-                // Request a dialog box with a message thanking the user for their purchase
-                self.dialog.request(
-                    DialogRequest::Alert("Thank you for your purchase!".to_string()),
-                    link.callback(|_| Msg::ToggleLightbox(None)),               );
-                // Return false to indicate that the component does not need to be re-rendered
-                false
+            // If the lightbox type is None (i.e. no lightbox should be displayed)...
+            None => {
+                // Return an empty HTML fragment
+                html! {}
             }
         }
     }
 
-    // The view method is called to render the component to the screen
+    // The view method is called to render the component
     fn view(&self) -> Html {
         html! {
-            <div id="saffron-vendor-home">
-                <button onclick=self.link.callback(|_| Msg::ToggleLightbox(Some(LightboxType::Buy)))>
-                    {"Buy Saffron"}
-                </button>
-                <button onclick=self.link.callback(|_| Msg::ToggleLightbox(Some(LightboxType::Redeem)))>
-                    {"Redeem Saffron"}
-                </button>
-                // Render the lightbox if it is open
-                {self.view_lightbox()}
+            // Container element
+            <div class="container">
+                // Title element
+                <h1 class="title">{ "Saffron Vendor" }</h1>
+                // Paragraph element
+                <p class="description">{ "Welcome to the Saffron Vendor website! Here you can buy and redeem high-quality saffron. Simply click the buttons below to get started." }</p>
+                // Button element to open the buy lightbox
+                <button class="btn btn-green" onclick=self.link.callback(|_| Msg::ToggleLightbox(Some(LightboxType::Buy)))>{ "Buy Saffron" }</button>
+                // Button element to open the redeem lightbox
+                <button class="btn btn-red" onclick=self.link.callback(|_| Msg::ToggleLightbox(Some(LightboxType::Redeem)))>{ "Redeem Saffron" }</button>
+                // Call the view_lightbox method to render the lightbox component
+                { self.view_lightbox() }
             </div>
         }
     }
 }
 
-// Define a helper method to render the lightbox
-impl Model {
-    fn view_lightbox(&self) -> Html {
-        // Match on the lightbox_type state variable to determine which lightbox to render
-        match self.lightbox_type {
-            // If the lightbox_type is Buy...
-            Some(LightboxType::Buy) => self.view_buy_lightbox(),
-            // If the lightbox_type is Redeem...
-            Some(LightboxType::Redeem) => self.view_redeem_lightbox(),
-            // If the lightbox_type is None, return an empty Html node
-            None => html! {},
-        }
-    }
-
-    // Define a helper method to render the buy lightbox
-    fn view_buy_lightbox(&self) -> Html {
-        html! {
-            <div class="lightbox">
-                <h2>{"Buy Saffron"}</h2>
-                <label>{"Quantity: "}</label>
-                // Render an input field for the quantity, with an oninput callback to update the state
-                <input type="number" value=self.quantity oninput=self.link.callback(|e: InputData| Msg::SetQuantity(e.value)) />
-                <button onclick=self.link.callback(|_| Msg::Confirm)>{"Confirm"}</button>
-                <button onclick=self.link.callback(|_| Msg::ToggleLightbox(None))>{"Cancel"}</button>
-            </div>
-        }
-    }
-
-    // Define a helper method to render the redeem lightbox
-    fn view_redeem_lightbox(&self) -> Html {
-        html! {
-            <div class="lightbox">
-                <h2>{"Redeem Saffron"}</h2>
-                <label>{"Name: "}</label>
-                // Render an input field for the name, with an oninput callback to update the state
-                <input type="text" value=self.name oninput=self.link.callback(|e: InputData| Msg::SetName(e.value)) />
-                <br />
-                <label>{"Address: "}</label>
-                // Render an input field for the address, with an oninput callback to update the state
-                <button onclick=self.link.callback(|_| Msg::ConfirmRedeem)>{"Confirm"}</button>
-                <button onclick=self.link.callback(|_| Msg::ToggleLightbox(None))>{"Cancel"}</button>
-            </div>
-        }
-    }
+// The main function is the entry point to the program
+fn main() {
+    // Initialize the Yew runtime
+    yew::initialize();
+    // Create a component instance
+    let app = App::<Model>::new(());
+    // Mount the component to the DOM
+    app.mount_to_body();
+    // Run the Yew runtime event loop
+    yew::run_loop();
 }
+
+
+
+/*
+*/
