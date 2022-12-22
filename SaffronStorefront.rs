@@ -94,6 +94,413 @@ impl Component for Model {
         let console = ConsoleService::new();
         // Initialize the DialogService
         let dialog = DialogService::new();
+        // Initialize the component state
+        Model { console, dialog, show_lightbox: false, lightbox_type: None, quantity: 0, name: "".to_string(), address: "".to_string(), redeem_quantity: 0 }
+    }
+
+    // The update method is called whenever the component's state needs to be updated
+    fn update(&mut self, msg: Self::Message) -> ShouldRender {
+        // Match on the incoming message
+        match msg {
+            // If the message is to toggle the lightbox...
+            Msg::ToggleLightbox(lightbox_type) => {
+                // Update the show_lightbox state variable based on whether a lightbox type was provided
+                self.show_lightbox = lightbox_type.is_some();
+                // Update the lightbox_type state variable with the provided lightbox type
+                self.lightbox_type = lightbox_type;
+                // Return true to indicate that the component should be re-rendered
+                true
+            }
+            // If the message is to set the quantity state variable...
+            Msg::SetQuantity(quantity) => {
+                // Parse the quantity string as a u32 and update the state variable
+                self.quantity = quantity.parse().unwrap();
+                // Return false to indicate that the component does not need to be re-rendered
+                false
+            }
+            // If the message is to set the name state variable...
+            Msg::SetName(name) => {
+                // Update the name state variable with the provided name
+                self.name = name;
+                // Return false to indicate that the component does not need to be re-rendered
+                false
+            }
+            // If the message is to set the address state variable...
+            Msg::SetAddress(address) => {
+                // Update the address state variable with the provided address
+                self.address = address;
+                // Return false to indicate that the component does not need to be re-rendered
+                false
+            }
+            // If the message is to set the redeem_quantity state variable...
+            Msg::SetRedeemQuantity(redeem_quantity) => {
+            self.redeem_quantity = redeem_quantity.parse().unwrap();
+            false
+        }
+        
+
+
+
+//? Maybe add receipt. Make sure buy qty and redeem qty are diff variables
+//? Make sure buy and redeem have different confirmation buttons
+
+
+
+
+            // If the message is to confirm a purchase...
+            Msg::Confirm => {
+                // Call the buy function
+                buy(self.quantity); 
+                // Display a dialog box to the user to confirm the purchase
+                self.dialog.confirm("Thank you for your purchase!");
+                // Reset the quantity state variable
+                self.quantity = 0;
+                // Close the lightbox
+                self.show_lightbox = false;
+                // Return true to indicate that the component should be re-rendered
+                true
+            }
+            // If the message is to confirm a redemption...
+            Msg::ConfirmRedeem => {
+                // Call the redeem function
+                redeem(self.name.clone(), self.address.clone(), self.redeem_quantity);
+                // Display a dialog box to the user to confirm the redemption
+                self.dialog.confirm("Thank you for your redemption!");
+                // Reset the name, address, and redeem_quantity state variables
+                self.name = "".to_string();
+                self.address = "".to_string();
+                self.redeem_quantity = 0;
+                // Close the lightbox
+                self.show_lightbox = false;
+                // Return true to indicate that the component should be re-rendered
+                true
+            }
+        }
+    }
+}
+
+// Define the buy function
+// This function takes in a u32 quantity argument, which represents the number of units of saffron that the user is purchasing
+fn buy(quantity: u32) {
+    // Get the user's Ethereum address
+    let user_address = get_user_address().unwrap();
+
+    // Create a transaction object
+    let tx = Transaction {
+        // Set the "to" field to the contract address
+        to: Some(contract_address.parse().unwrap()),
+        // Set the "value" field to the quantity multiplied by the price per unit
+        value: quantity as u128 * PRICE_PER_UNIT,
+        // Set the "data" field to the encoded function call data
+        data: Some(encode_function_call(b"buy", &[])),
+        // Set the "gas" field to the maximum gas allowed for the transaction
+        gas: Some(MAX_GAS),
+        // Set the "gas_price" field to the minimum gas price allowed for the transaction
+        gas_price: Some(MIN_GAS_PRICE),
+        // ... other transaction fields
+    };
+
+    // Sign the transaction using the user's Ethereum address
+    let signed_tx = sign_transaction(tx, user_address).unwrap();
+
+    // Send the signed transaction to the Ethereum network
+    send_transaction(signed_tx).unwrap();
+}
+
+// Define the redeem function
+// This function takes in three arguments: a string name, a string address, and a u32 quantity
+fn redeem(name: String, address: String, quantity: u32) {
+    // Get the user's Ethereum address
+    let user_address = get_user_address().unwrap();
+
+    // Convert the name and address strings to byte arrays
+    let name_bytes = name.as_bytes();
+    let address_bytes = address.as_bytes();
+
+    // Create a transaction object
+    let tx = Transaction {
+        // Set the "to" field to the contract address
+        to: Some(contract_address.parse().unwrap()),
+        // Set the "value" field to zero
+        value: 0,
+        // Set the "data" field to the encoded function call data
+        data: Some(encode_function_call(b"redeem", &[name_bytes.to_vec(), address_bytes.to_vec()])),
+        // Set the "gas" field to the maximum gas allowed for the transaction
+        gas: Some(MAX_GAS),
+        // Set the "gas_price" field to the minimum gas price allowed for the transaction
+        gas_price: Some(MIN_GAS_PRICE),
+        // ... other transaction fields
+    };
+
+    // Sign the transaction using the user's Ethereum address
+    let signed_tx = sign_transaction(tx, user_address).unwrap();
+
+    // Send the signed transaction to the Ethereum network
+    send_transaction(signed_tx).unwrap();
+}
+
+// Define the main function
+// Define the main function
+fn main() {
+    // Set up the event listener for the "Buy" button
+    let buy_button = document.get_element_by_id("buy_button").unwrap();
+    let buy_closure = Closure::wrap(Box::new(move || {
+        // Get the quantity input field
+        let quantity_input = document.get_element_by_id("quantity").unwrap();
+        let quantity: u32 = quantity_input.dyn_ref::<HTMLInputElement>().unwrap().value().parse().unwrap();
+
+        // Buy the specified quantity of saffron
+        let receipt = buy_saffron(quantity).unwrap();
+
+        // Display the transaction receipt
+        alert(&format!("Transaction receipt: {:?}", receipt));
+    }) as Box<dyn FnMut()>);
+    buy_button.add_event_listener_with_callback("click", buy_closure.as_ref().unchecked_ref()).unwrap();
+    buy_closure.forget();
+
+    // Set up the event listener for the "Redeem" button
+    let redeem_button = document.get_element_by_id("redeem_button").unwrap();
+    let redeem_closure = Closure::wrap(Box::new(move || {
+        // Get the name input field
+        let name_input = document.get_element_by_id("name").unwrap();
+        let name = name_input.dyn_ref::<HTMLInputElement>().unwrap().value();
+
+        // Get the address input field
+        let address_input = document.get_element_by_id("address").unwrap();
+        let address = address_input.dyn_ref::<HTMLInputElement>().unwrap().value();
+
+        // Get the quantity input field
+        let quantity_input = document.get_element_by_id("redeem_quantity").unwrap();
+        let quantity: u32 = quantity_input.dyn_ref::<HTMLInputElement>().unwrap().value().parse().unwrap();
+
+        // Redeem the specified quantity of saffron
+        let receipt = redeem_saffron(name, address, quantity).unwrap();
+
+        // Display the transaction receipt
+        alert(&format!("Transaction receipt: {:?}", receipt));
+    }) as Box<dyn FnMut()>);
+    redeem_button.add_event_listener_with_callback("click", redeem_closure.as_ref().unchecked_ref()).unwrap();
+    redeem_closure.forget();
+}
+
+
+
+
+
+
+
+// Define the get_user_address function
+// This function returns the Ethereum address of the user who is currently logged in to their wallet
+fn get_user_address() -> Result<Address, String> {
+    // Call the web3.eth.getAccounts method to get the user's Ethereum address
+    let accounts = web3.eth().accounts().map_err(|e| e.to_string())?;
+
+    // Return the first element of the accounts array (the user's Ethereum address)
+    Ok(accounts[0])
+}
+
+// Define the sign_transaction function
+// This function takes in a transaction object and an Ethereum address, and returns the signed transaction
+fn sign_transaction(tx: Transaction, address: Address) -> Result<SignedTransaction, String> {
+    // Call the web3.eth.signTransaction method to sign the transaction
+    let signed_tx = web3.eth().sign_transaction(tx, address).map_err(|e| e.to_string())?;
+
+    // Return the signed transaction
+    Ok(signed_tx)
+}
+
+// Define the send_transaction function
+// This function takes in a signed transaction and sends it to the Ethereum network
+fn send_transaction(signed_tx: SignedTransaction) -> Result<TransactionReceipt, String> {
+    // Call the web3.eth.sendSignedTransaction method to send the signed transaction to the Ethereum network
+    let receipt = web3.eth().send_signed_transaction(signed_tx).map_err(|e| e.to_string())?;
+
+    // Return the transaction receipt
+    Ok(receipt)
+}
+
+// Define the encode_function_call function
+// This function takes in a function name and an array of parameters, and returns the encoded function call data
+// Define the encode_function_call function
+// This function takes in a function name and an array of parameters, and returns the encoded function call data
+fn encode_function_call(name: &[u8], params: &[Vec<u8>]) -> Vec<u8> {
+    // Encode the function name
+    let mut data = web3.eth.abi.encode_function_signature(name);
+
+    // Encode the function parameters
+    data.extend_from_slice(&web3.eth.abi.encode_abi(&params));
+
+    // Return the encoded data
+    data
+}
+
+
+// Define the create_transaction function
+// This function takes in a function name, an array of parameters, and a value (in Ether), and returns a transaction object
+fn create_transaction(name: &[u8], params: &[Vec<u8>], value: u64) -> Transaction {
+    // Encode the function call data
+    let data = encode_function_call(name, params);
+
+    // Create the transaction object
+    let tx = Transaction {
+        // Set the "to" field to the contract address
+        to: Some(contract_address),
+        // Set the "data" field to the encoded function call data
+        data: Some(data),
+        // Set the "value" field to the specified value (in Ether)
+        value: value,
+        // Set the "gas" field to the maximum gas allowed for the transaction
+        gas: 100_000_000,
+        // Set the "gas_price" field to the minimum gas price allowed for the transaction
+        gas_price: 1_000_000_000,
+    };
+
+    // Return the transaction object
+    tx
+}
+
+// Define the buy_saffron function
+// This function sends a transaction to the Ethereum network to buy saffron
+fn buy_saffron(quantity: u32) -> Result<TransactionReceipt, String> {
+    // Get the user's Ethereum address
+    let user_address = get_user_address()?;
+
+    // Calculate the value (in Ether) of the saffron purchase
+    let value = quantity as u64 * 100;
+
+    // Create the transaction object
+    let tx = create_transaction(b"buy", &[], value);
+
+    // Sign the transaction
+    let signed_tx = sign_transaction(tx, user_address)?;
+
+    // Send the signed transaction to the Ethereum network
+    let receipt = send_transaction(signed_tx)?;
+
+    // Return the transaction receipt
+    Ok(receipt)
+}
+
+// Define the redeem_saffron function
+// This function sends a transaction to the Ethereum network to redeem saffron
+fn redeem_saffron(name: String, address: String, quantity: u32) -> Result<TransactionReceipt, String> {
+    // Get the user's Ethereum address
+    let user_address = get_user_address()?;
+
+    // Convert the name and address strings to byte arrays
+    let name_bytes = web3.utils.from_ascii(name);
+    let address_bytes = web3.utils.from_ascii(address);
+
+    // Create the parameters array
+    let params = [&name_bytes, &address_bytes];
+
+    // Create the transaction object
+    let tx = create_transaction(b"redeem", &params, 0);
+
+    // Sign the transaction
+    let signed_tx = sign_transaction(tx, user_address)?;
+
+    // Send the signed transaction to the Ethereum network
+    let receipt = send_transaction(signed_tx)?;
+
+    // Return the transaction receipt
+    Ok(receipt)
+}
+fn view(&self) -> Html {
+    // Define the lightbox content
+    let lightbox = self.view_lightbox();
+    // Define the main content of the page
+    html! {
+        <div class="container">
+            // Header
+            <h1>{ "Saffron Vendor" }</h1>
+            // Buy button
+            <button type="button" class="btn btn-green" onclick=self.link.callback(|_| Msg::ToggleLightbox(Some(LightboxType::Buy)))>{ "Buy" }</button>
+            // Redeem button
+            <button type="button" class="btn btn-red" onclick=self.link.callback(|_| Msg::ToggleLightbox(Some(LightboxType::Redeem)))>{ "Redeem" }</button>
+            // Lightbox
+            { lightbox }
+        </div>
+    }
+}
+
+// Define a function to render the lightbox
+fn view_lightbox(&self) -> Html {
+    let content = match self.lightbox_type {
+        Some(LightboxType::Buy) => {
+            html! {
+                <div class="lightbox-content">
+                    <form>
+                        <label for="quantity" class="form-label">{ "Quantity:" }</label>
+                        <input type="number" id="quantity" class="form-input" value=self.quantity.to_string() oninput=self.link.callback(|e: InputData| Msg::SetQuantity(e.value)) />
+                        <button type="button" class="btn btn-green" onclick=self.link.callback(|_| Msg::Confirm)>{ "Buy" }</button>
+                    </form>
+                </div>
+            }
+        }
+        Some(LightboxType::Redeem) => {
+            html! {
+                <div class="lightbox-content">
+                    <form>
+                        <label for="name" class="form-label">{ "Name:" }</label>
+                        <input type="text" id="name" class="form-input" value=self.name oninput=self.link.callback(|e: InputData| Msg::SetName(e.value)) />
+                        <label for="address" class="form-label">{ "Address:" }</label>
+                        <input type="text" id="address" class="form-input" value=self.address oninput=self.link.callback(|e: InputData| Msg::SetAddress(e.value)) />
+                        <label for="redeem_quantity" class="form-label">{ "Quantity:" }</label>
+                        <input type="number" id="redeem_quantity" class="form-input" value=self.redeem_quantity.to_string() oninput=self.link.callback(|e: InputData| Msg::SetRedeemQuantity(e.value)) />
+                        <button type="button" class="btn btn-red" onclick=self.link.callback(|_| Msg::ConfirmRedeem)>{ "Redeem" }</button>
+                    </form>
+                </div>
+            }
+        }
+        None => {
+            html! {}
+        }
+    };
+
+
+    if self.show_lightbox {
+        html! {
+            <div class="lightbox-overlay">
+                { content }
+            </div>
+        }
+    } else {
+        html! {}
+    }
+}
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+// The above is the most complete code rendered missing the rest of view 
+
+
+// Implement the Component trait for the Model struct
+impl Component for Model {
+    // Define the type of message that the component can receive
+    type Message = Msg;
+    // The component has no properties
+    type Properties = ();
+
+    // The create method is called when the component is first initialized
+    fn create(_: Self::Properties, link: ComponentLink<Self>) -> Self {
+        // Initialize the ConsoleService
+        let console = ConsoleService::new();
+        // Initialize the DialogService
+        let dialog = DialogService::new();
         // Initialize the FetchService
         let fetch = FetchService::new();
         // Initialize the IntervalService
@@ -119,8 +526,90 @@ impl Component for Model {
         Model { console, dialog, fetch, interval, storage, web3, contract, contract_address, contract_abi, user_address, show_lightbox: false, lightbox_type: None, quantity: 0, name: "".to_string(), address: "".to_string(), redeem_quantity: 0, contract_balance: None, user_balance: None, balance_task: None, balance_interval: None }
     }
 
-    // The update method is called whenever the component's state needs to be updated
-    fn update(&mut self, msg: Self::Message) -> ShouldRender {
+
+
+/*
+// Define the view function for the component
+// This function describes the HTML structure of the component
+fn view(&self) -> Html {
+    // If the lightbox is open, render the lightbox component
+    let lightbox = if self.show_lightbox {
+        // If the lightbox type is "Buy"...
+        if let Some(LightboxType::Buy) = self.lightbox_type {
+            // Render the buy lightbox component
+            html! {
+                <div class="lightbox">
+                    // Form for purchasing saffron
+                    <form>
+                        // Label for the quantity input
+                        <label for="quantity" class="form-label">{ "Quantity:" }</label>
+                        // Input element for quantity
+                        <input type="number" id="quantity" class="form-input" value=self.quantity.to_string() oninput=self.link.callback(|e: InputData| Msg::SetQuantity(e.value)) />
+                        // Button to confirm purchase
+                        <button type="button" class="btn btn-primary" onclick=self.link.callback(|_| Msg::Confirm)>{ "Buy" }</button>
+                        // Button to close the lightbox
+                        <button type="button" class="btn btn-secondary" onclick=self.link.callback(|_| Msg::ToggleLightbox(None))>{ "Cancel" }</button>
+                    </form>
+                </div>
+            }
+        }
+        // If the lightbox type is "Redeem"...
+        else if let Some(LightboxType::Redeem) = self.lightbox_type {
+            // Render the redeem lightbox component
+            html! {
+                <div class="lightbox">
+                    // Form for redeeming saffron
+                    <form>
+                        // Label for the name input
+                        <label for="name" class="form-label">{ "Name:" }</label>
+                        // Input element for name
+                        <input type="text" id="name" class="form-input" value=&self.name oninput=self.link.callback(|e: InputData| Msg::SetName(e.value)) />
+                        // Label for the address input
+                        <label for="address" class="form-label">{ "Address:" }</label>
+                        // Input element for address
+                        <input type="text" id="address" class="form-input" value=&self.address oninput=self.link.callback(|e: InputData| Msg::SetAddress(e.value)) />
+                        // Label for the redeem_quantity input
+                        <label for="redeem_quantity" class="form-label">{ "Quantity:" }</label>
+                        // Input element for redeem_quantity
+                        <input type="number" id="redeem_quantity" class="form-input" value=self.redeem_quantity.to_string() oninput=self.link.callback(|e: InputData| Msg::SetRedeemQuantity(e.value)) />
+                        // Button to confirm redemption
+                        <button type="button" class="btn btn-primary" onclick
+
+
+
+
+
+
+
+fn view(&self) -> Html {
+    html! {
+        <div class="container">
+            <h1>{ "Saffron Vendor" }</h1>
+            <div class="card">
+                <img src="/saffron.jpg" alt="Saffron" class="card-img-top" />
+                <div class="card-body">
+                    <h5 class="card-title">{ "Saffron" }</h5>
+                    <p class="card-text">{ "The finest quality saffron available. Perfect for cooking and home remedies." }</p>
+                    <button type="button" class="btn btn-green" onclick=self.link.callback(|_| Msg::ToggleLightbox(Some(LightboxType::Buy)))>{ "Buy" }</button>
+                    <button type="button" class="btn btn-red" onclick=self.link.callback(|_| Msg::ToggleLightbox(Some(LightboxType::Redeem)))>{ "Redeem" }</button>
+                </div>
+            </div>
+            { self.view_lightbox() }
+        </div>
+    }
+}*/
+/*
+
+
+
+
+
+
+
+
+
+Vvvvvvvvvvvvvvvvv
+ fn update(&mut self, msg: Self::Message) -> ShouldRender {
         // Match on the incoming message
         match msg {
             // If the message is to toggle the lightbox...
@@ -182,18 +671,7 @@ impl Component for Model {
         }
     }
 
-    // The view_lightbox method is called to render the lightbox component
-    fn view_lightbox(&self) -> Html {
-        // Match on the lightbox_type state variable
-        match &self.lightbox_type {
-            // If the lightbox type is Buy...
-            Some(LightboxType::Buy) => {
-                // Render the HTML for the buy lightbox
-                html! {
-                    // Overlay element
-                    <div class="overlay" onclick=self.link.callback(|_| Msg::ToggleLightbox(None))>
-                        // Modal element
-                        <
+ 
 //???????????
 
 
@@ -230,6 +708,25 @@ impl Component for Model {
                     </div>
                 }
             }
+
+//
+        // If the lightbox type is Some(LightboxType::Redeem)...
+        Some(LightboxType::Redeem) => {
+            // Return the HTML for the redeem lightbox
+            html! {
+                // Container element for the lightbox
+                <div class="lightbox-container">
+                    // Inner container element for the lightbox
+                    <div class="lightbox">
+                        // Title element for the lightbox
+                        <h2 class="lightbox-title
+
+
+
+
+
+
+
             // If the lightbox type is Redeem...
             Some(LightboxType::Redeem) => {
                 // Render the HTML for the redeem lightbox
@@ -259,9 +756,7 @@ impl Component for Model {
                                 <input type="number" id="redeem_quantity" class="form-input" value=self.redeem_quantity.to_string() oninput=self.link.callback(|e: InputData| Msg::SetRedeemQuantity(e.value)) />
                                 //
 
-//?????????
-
-                                // Button element to submit the form
+//?????????                                // Button element to submit the form
                                 <button type="submit" class="btn btn-green">{ "Confirm" }</button>
                             </form>
                             // Button element to close the lightbox
@@ -276,8 +771,8 @@ impl Component for Model {
                 html! {}
             }
         }
-    }
-
+    }*/
+/*
     // The view method is called to render the component
     fn view(&self) -> Html {
         html! {
@@ -309,8 +804,19 @@ fn main() {
     // Run the Yew runtime event loop
     yew::run_loop();
 }
+*/
 
 
+/*This code defines a Rust component using the Yew framework. The component has a state that includes a flag to track whether a lightbox is currently being displayed, and an enum to track the type of lightbox that is being displayed (either Buy or Redeem). The component also has state variables to track the quantity of saffron being purchased, the name and address of the user redeeming saffron, and the quantity of saffron being redeemed.
 
-/*
+The component has two buttons: a green "Buy Saffron" button and a red "Redeem Saffron" button. When either button is clicked, it opens a lightbox component with a form for the user to enter the necessary information. The "Buy Saffron" lightbox has a form with a field for the user to enter the quantity of saffron they want to purchase, and a "Confirm" button to submit the
+form. When the "Confirm" button is clicked, it calls the `buy` function defined earlier, which sends a transaction to the smart contract's `buy` function.
+
+The "Redeem Saffron" lightbox has a form with fields for the user to enter their name, address, and the quantity of saffron they want to redeem, as well as a "Confirm" button to submit the form. When the "Confirm" button is clicked, it calls the `redeem` function defined earlier, which sends a transaction to the smart contract's `redeem` function with the user's name and address as input parameters.
+
+Both lightboxes also have a "Cancel" button to close the lightbox.
+
+The component's `view` method is responsible for rendering the HTML for the component, including the buttons and the lightbox. The `view_lightbox` method is called to render the lightbox component, which is based on the value of the `lightbox_type` state variable. If the `lightbox_type` is `Some(LightboxType::Buy)`, it renders the "Buy Saffron" lightbox, and if it is `Some(LightboxType::Redeem)`, it renders the "Redeem Saffron" lightbox. If the `lightbox_type` is `None`, it renders an empty HTML fragment.
+
+Finally, the `main` function initializes the Yew runtime, creates an instance of the component, and mounts it to the DOM. It then runs the Yew runtime event loop to handle events and updates to the component.
 */
